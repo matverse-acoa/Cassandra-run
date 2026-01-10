@@ -29,7 +29,7 @@ services:
       - NODE_NAME=cassandra-1
       - NODE_ROLE=validator
       - MATVERSE_NETWORK=${MATVERSE_NETWORK:-mainnet}
-      - MATVERSE_API_TOKEN=${MATVERSE_API_TOKEN}
+      - MATVERSE_API_TOKEN=${MATVERSE_API_TOKEN:?MATVERSE_API_TOKEN is required}
       - MATVERSE_LOG_LEVEL=info
       - MATVERSE_P2P_SEEDS=cassandra-2:30303,cassandra-3:30303
     volumes:
@@ -54,7 +54,7 @@ services:
       - NODE_NAME=cassandra-2
       - NODE_ROLE=validator
       - MATVERSE_NETWORK=${MATVERSE_NETWORK:-mainnet}
-      - MATVERSE_API_TOKEN=${MATVERSE_API_TOKEN}
+      - MATVERSE_API_TOKEN=${MATVERSE_API_TOKEN:?MATVERSE_API_TOKEN is required}
       - MATVERSE_LOG_LEVEL=info
       - MATVERSE_P2P_SEEDS=cassandra-1:30303,cassandra-3:30303
     volumes:
@@ -79,7 +79,7 @@ services:
       - NODE_NAME=cassandra-3
       - NODE_ROLE=validator
       - MATVERSE_NETWORK=${MATVERSE_NETWORK:-mainnet}
-      - MATVERSE_API_TOKEN=${MATVERSE_API_TOKEN}
+      - MATVERSE_API_TOKEN=${MATVERSE_API_TOKEN:?MATVERSE_API_TOKEN is required}
       - MATVERSE_LOG_LEVEL=info
       - MATVERSE_P2P_SEEDS=cassandra-1:30303,cassandra-2:30303
     volumes:
@@ -98,7 +98,7 @@ services:
     restart: unless-stopped
     environment:
       POSTGRES_USER: matverse
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-ChangeThisPassword}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
       POSTGRES_DB: cassandra_ledger
       POSTGRES_INITDB_ARGS: "--encoding=UTF8 --lc-collate=C --lc-ctype=C"
     volumes:
@@ -118,7 +118,7 @@ services:
     image: redis:7-alpine
     container_name: cassandra-redis
     restart: unless-stopped
-    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:-ChangeThisPassword}
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:?REDIS_PASSWORD is required}
     volumes:
       - redis_data:/data
     ports:
@@ -126,7 +126,7 @@ services:
     networks:
       - matverse-net
     healthcheck:
-      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD:-ChangeThisPassword}", "ping"]
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD:?REDIS_PASSWORD is required}", "ping"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -160,7 +160,7 @@ services:
     container_name: cassandra-grafana
     restart: unless-stopped
     environment:
-      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:-ChangeThisPassword}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:?GRAFANA_PASSWORD is required}
       GF_INSTALL_PLUGINS: grafana-piechart-panel
       GF_SERVER_ROOT_URL: "https://grafana.matverse.network"
     volumes:
