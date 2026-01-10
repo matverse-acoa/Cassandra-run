@@ -1,0 +1,2 @@
+#!/usr/bin/env sh
+echo '{"decision":"PASS","record_hash":"stub","new_root":"stub"}'
