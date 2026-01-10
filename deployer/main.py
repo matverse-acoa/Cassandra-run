@@ -8,9 +8,12 @@ import asyncio
 import json
 import logging
 import secrets
+import shutil
 import subprocess
 import sys
+import time
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import List, Optional
 
@@ -34,6 +37,13 @@ class DeploymentConfig:
     data_dir: Path = Path("/var/lib/cassandra-matverse")
     log_dir: Path = Path("/var/log/cassandra-matverse")
     config_dir: Path = Path("/etc/cassandra-matverse")
+    report_file: Optional[Path] = None
+
+    # Artefatos de deployment
+    docker_compose_file: Path = Path("docker-compose.production.yml")
+    helm_chart_dir: Path = Path("k8s")
+    helm_release_name: str = "cassandra-matverse"
+    k8s_namespace: str = "production"
 
     # Segurança
     api_token: Optional[str] = None
@@ -57,6 +67,22 @@ class DeploymentConfig:
 
     def __post_init__(self) -> None:
         """Pós-inicialização"""
+        if isinstance(self.base_dir, str):
+            self.base_dir = Path(self.base_dir)
+        if isinstance(self.data_dir, str):
+            self.data_dir = Path(self.data_dir)
+        if isinstance(self.log_dir, str):
+            self.log_dir = Path(self.log_dir)
+        if isinstance(self.config_dir, str):
+            self.config_dir = Path(self.config_dir)
+        if isinstance(self.docker_compose_file, str):
+            self.docker_compose_file = Path(self.docker_compose_file)
+        if isinstance(self.helm_chart_dir, str):
+            self.helm_chart_dir = Path(self.helm_chart_dir)
+        if self.report_file is None:
+            self.report_file = self.log_dir / "deployment-report.json"
+        elif isinstance(self.report_file, str):
+            self.report_file = Path(self.report_file)
         if not self.api_token:
             self.api_token = secrets.token_hex(32)
 
@@ -224,6 +250,17 @@ os.makedirs(_log_dir, exist_ok=True)
 # ============================================================================
 
 
+@dataclass
+class DeploymentStepResult:
+    """Resultado de um passo do deployment."""
+
+    name: str
+    success: bool
+    duration_seconds: float
+    started_at: str
+    detail: str = ""
+
+
 class DeploymentOrchestrator:
     """Orquestrador completo de deployment"""
 
@@ -231,6 +268,7 @@ class DeploymentOrchestrator:
         self.config = config
         self.patch_manager = PatchManager(config)
         self.logger = logging.getLogger(__name__)
+        self.step_results: List[DeploymentStepResult] = []
 
         # Inicializar logging
         self._setup_logging()
@@ -261,12 +299,25 @@ class DeploymentOrchestrator:
             self._validate_deployment,
         ]
 
-        for step in steps:
-            try:
-                await step()
-            except Exception as exc:  # pylint: disable=broad-except
-                self.logger.error("❌ Erro no passo %s: %s", step.__name__, exc)
-                raise
+        try:
+            for step in steps:
+                started_at = datetime.now(timezone.utc).isoformat()
+                start_time = time.monotonic()
+                try:
+                    await step()
+                    self._record_step_result(step.__name__, True, start_time, started_at)
+                except Exception as exc:  # pylint: disable=broad-except
+                    self.logger.error("❌ Erro no passo %s: %s", step.__name__, exc)
+                    self._record_step_result(
+                        step.__name__,
+                        False,
+                        start_time,
+                        started_at,
+                        detail=str(exc),
+                    )
+                    raise
+        finally:
+            self._write_deployment_report()
 
         self.logger.info("✅ Deployment completo com sucesso")
 
@@ -277,11 +328,19 @@ class DeploymentOrchestrator:
             "docker": "20.10+ (opcional)",
             "systemctl": "systemd 240+",
             "openssl": "1.1.1+",
+            "kubectl": "1.27+ (opcional)",
+            "helm": "3.12+ (opcional)",
         }
 
         self.logger.info("🔍 Validando ambiente...")
 
         for cmd, version in requirements.items():
+            if self.config.deployment_mode == "docker" and cmd in {"systemctl", "kubectl", "helm"}:
+                continue
+            if self.config.deployment_mode == "k8s" and cmd in {"systemctl", "docker"}:
+                continue
+            if self.config.deployment_mode == "systemd" and cmd in {"kubectl", "helm"}:
+                continue
             result = subprocess.run(["which", cmd], capture_output=True, check=False)
             if result.returncode == 0:
                 self.logger.info("✅ %s: encontrado", cmd)
@@ -355,6 +414,10 @@ vm.overcommit_memory = 1
 
     async def _install_dependencies(self) -> None:
         """Instala dependências do sistema"""
+        if self.config.deployment_mode != "systemd":
+            self.logger.info("ℹ️  Dependências gerenciadas pelo modo %s", self.config.deployment_mode)
+            return
+
         self.logger.info("📦 Instalando dependências...")
 
         subprocess.run(["apt-get", "update", "-y"], check=False)
@@ -401,7 +464,18 @@ vm.overcommit_memory = 1
 
     async def _deploy_application(self) -> None:
         """Deploy da aplicação principal"""
-        self.logger.info("🚀 Deployando aplicação...")
+        if self.config.deployment_mode == "systemd":
+            await self._deploy_systemd()
+        elif self.config.deployment_mode == "docker":
+            await self._deploy_docker()
+        elif self.config.deployment_mode == "k8s":
+            await self._deploy_k8s()
+        else:
+            raise ValueError(f"Modo de deployment inválido: {self.config.deployment_mode}")
+
+    async def _deploy_systemd(self) -> None:
+        """Deploy via systemd"""
+        self.logger.info("🚀 Deployando aplicação via systemd...")
 
         bin_files = ["cassandra-matverse", "health-check", "monitor", "reload-config"]
         for file in bin_files:
@@ -433,11 +507,93 @@ vm.overcommit_memory = 1
         subprocess.run(["systemctl", "enable", "cassandra-matverse-monitor.service"], check=False)
         subprocess.run(["systemctl", "start", "cassandra-matverse.service"], check=False)
 
-        self.logger.info("✅ Aplicação deployada")
+        self.logger.info("✅ Aplicação deployada via systemd")
+
+    async def _deploy_docker(self) -> None:
+        """Deploy via Docker Compose"""
+        self.logger.info("🐳 Deployando aplicação via Docker Compose...")
+
+        compose_source = self.config.docker_compose_file
+        if not compose_source.exists():
+            raise FileNotFoundError(f"Arquivo Docker Compose não encontrado: {compose_source}")
+        compose_target = self.config.base_dir / "docker-compose.yml"
+        compose_target.parent.mkdir(parents=True, exist_ok=True)
+        compose_target.write_text(compose_source.read_text())
+
+        env_file = self.config.config_dir / "docker.env"
+        env_file.parent.mkdir(parents=True, exist_ok=True)
+        env_lines = [
+            f"MATVERSE_NETWORK={self.config.network}",
+            f"MATVERSE_API_TOKEN={self.config.api_token}",
+            "POSTGRES_PASSWORD=ChangeThisPassword",
+            "REDIS_PASSWORD=ChangeThisPassword",
+            "GRAFANA_PASSWORD=ChangeThisPassword",
+        ]
+        env_file.write_text("\n".join(env_lines) + "\n")
+
+        docker_compose_cmd = None
+        if shutil.which("docker"):
+            if subprocess.run(["docker", "compose", "version"], check=False).returncode == 0:
+                docker_compose_cmd = ["docker", "compose"]
+        if docker_compose_cmd is None and shutil.which("docker-compose"):
+            if subprocess.run(["docker-compose", "version"], check=False).returncode == 0:
+                docker_compose_cmd = ["docker-compose"]
+
+        if not docker_compose_cmd:
+            raise RuntimeError("Docker Compose não encontrado")
+
+        subprocess.run(
+            docker_compose_cmd
+            + [
+                "--env-file",
+                str(env_file),
+                "-f",
+                str(compose_target),
+                "up",
+                "-d",
+            ],
+            check=False,
+        )
+
+        self.logger.info("✅ Aplicação deployada via Docker Compose")
+
+    async def _deploy_k8s(self) -> None:
+        """Deploy via Helm/Kubernetes"""
+        self.logger.info("☸️  Deployando aplicação via Kubernetes...")
+
+        if not self.config.helm_chart_dir.exists():
+            raise FileNotFoundError(
+                f"Chart Helm não encontrado: {self.config.helm_chart_dir}"
+            )
+
+        namespace = self.config.k8s_namespace
+        subprocess.run(["kubectl", "create", "namespace", namespace], check=False)
+
+        values_file = self.config.helm_chart_dir / "values-production.yaml"
+        subprocess.run(
+            [
+                "helm",
+                "upgrade",
+                "--install",
+                self.config.helm_release_name,
+                str(self.config.helm_chart_dir),
+                "--namespace",
+                namespace,
+                "-f",
+                str(values_file),
+            ],
+            check=False,
+        )
+
+        self.logger.info("✅ Aplicação deployada via Kubernetes")
 
     async def _setup_monitoring(self) -> None:
         """Configura monitoramento"""
         if not self.config.prometheus_enabled:
+            return
+
+        if self.config.deployment_mode != "systemd":
+            self.logger.info("ℹ️  Monitoramento gerenciado pelo modo %s", self.config.deployment_mode)
             return
 
         self.logger.info("📊 Configurando monitoramento...")
@@ -499,6 +655,10 @@ scrape_configs:
 
     async def _test_service_running(self) -> bool:
         """Testa se serviço está rodando"""
+        if self.config.deployment_mode == "docker":
+            return self._test_docker_services()
+        if self.config.deployment_mode == "k8s":
+            return self._test_k8s_services()
         result = subprocess.run(
             ["systemctl", "is-active", "cassandra-matverse.service"],
             capture_output=True,
@@ -525,6 +685,79 @@ scrape_configs:
     async def _test_monitoring(self) -> bool:
         """Placeholder para teste de monitoramento"""
         return True
+
+    def _test_docker_services(self) -> bool:
+        compose_target = self.config.base_dir / "docker-compose.yml"
+        if not compose_target.exists():
+            return False
+
+        if shutil.which("docker") and subprocess.run(
+            ["docker", "compose", "version"], check=False
+        ).returncode == 0:
+            cmd = ["docker", "compose"]
+        elif shutil.which("docker-compose"):
+            cmd = ["docker-compose"]
+        else:
+            return False
+
+        result = subprocess.run(
+            cmd + ["-f", str(compose_target), "ps"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        return result.returncode == 0
+
+    def _test_k8s_services(self) -> bool:
+        result = subprocess.run(
+            ["kubectl", "-n", self.config.k8s_namespace, "get", "pods"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        return result.returncode == 0
+
+    def _record_step_result(
+        self,
+        step_name: str,
+        success: bool,
+        start_time: float,
+        started_at: str,
+        detail: str = "",
+    ) -> None:
+        duration = time.monotonic() - start_time
+        self.step_results.append(
+            DeploymentStepResult(
+                name=step_name,
+                success=success,
+                duration_seconds=duration,
+                started_at=started_at,
+                detail=detail,
+            )
+        )
+
+    def _write_deployment_report(self) -> None:
+        report = {
+            "environment": self.config.environment,
+            "network": self.config.network,
+            "deployment_mode": self.config.deployment_mode,
+            "generated_at": datetime.now(timezone.utc).isoformat(),
+            "steps": [
+                {
+                    "name": result.name,
+                    "success": result.success,
+                    "duration_seconds": round(result.duration_seconds, 3),
+                    "started_at": result.started_at,
+                    "detail": result.detail,
+                }
+                for result in self.step_results
+            ],
+        }
+        report_file = self.config.report_file
+        if report_file is None:
+            return
+        report_file.parent.mkdir(parents=True, exist_ok=True)
+        report_file.write_text(json.dumps(report, indent=2))
 
 
 # ==========================================================================
@@ -579,14 +812,19 @@ Exemplos:
         type=Path,
         help="Arquivo de configuração YAML/JSON",
     )
+    parser.add_argument(
+        "--report-file",
+        type=Path,
+        help="Caminho do relatório JSON de deployment",
+    )
 
     args = parser.parse_args()
 
     if args.config_file and args.config_file.exists():
         if args.config_file.suffix == ".json":
-            config_data = json.loads(args.config_file.read_text())
+            config_data = json.loads(args.config_file.read_text(encoding="utf-8"))
         elif args.config_file.suffix in {".yaml", ".yml"}:
-            config_data = yaml.safe_load(args.config_file.read_text())
+            config_data = yaml.safe_load(args.config_file.read_text(encoding="utf-8"))
         else:
             raise ValueError("Formato de arquivo não suportado")
 
@@ -597,6 +835,9 @@ Exemplos:
             network=args.network,
             deployment_mode=args.mode,
         )
+
+    if args.report_file:
+        config.report_file = args.report_file
 
     orchestrator = DeploymentOrchestrator(config)
 
