@@ -71,8 +71,36 @@ generate_secrets() {
     if [[ ! -f .secrets/redis_password ]]; then
         openssl rand -base64 32 > .secrets/redis_password
     fi
+    if [[ ! -f .secrets/grafana_password ]]; then
+        openssl rand -base64 32 > .secrets/grafana_password
+    fi
+
+    chmod 600 .secrets/*
 
     log_info "✅ Segredos gerados"
+}
+
+load_secrets() {
+    log_info "Carregando segredos..."
+
+    if [[ -f .secrets/api_token ]]; then
+        export MATVERSE_API_TOKEN
+        MATVERSE_API_TOKEN="$(< .secrets/api_token)"
+    fi
+    if [[ -f .secrets/postgres_password ]]; then
+        export POSTGRES_PASSWORD
+        POSTGRES_PASSWORD="$(< .secrets/postgres_password)"
+    fi
+    if [[ -f .secrets/redis_password ]]; then
+        export REDIS_PASSWORD
+        REDIS_PASSWORD="$(< .secrets/redis_password)"
+    fi
+    if [[ -f .secrets/grafana_password ]]; then
+        export GRAFANA_PASSWORD
+        GRAFANA_PASSWORD="$(< .secrets/grafana_password)"
+    fi
+
+    log_info "✅ Segredos carregados"
 }
 
 setup_environment() {
@@ -218,6 +246,7 @@ main() {
 
     check_requirements
     generate_secrets
+    load_secrets
     setup_environment
 
     case "$DEPLOY_MODE" in
