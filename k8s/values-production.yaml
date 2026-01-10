@@ -1,0 +1,134 @@
+global:
+  environment: production
+  clusterName: matverse-sovereign
+  domain: matverse.network
+
+cassandra:
+  replicaCount: 3
+  image:
+    repository: matverse/cassandra-node
+    tag: 1.0.0
+    pullPolicy: IfNotPresent
+    imagePullSecrets: []
+
+  service:
+    type: LoadBalancer
+    ports:
+      rpc: 8545
+      p2p:
+        tcp: 30303
+        udp: 30303
+      metrics: 9090
+
+  ingress:
+    enabled: true
+    className: nginx
+    annotations:
+      cert-manager.io/cluster-issuer: letsencrypt-prod
+    hosts:
+      - host: matverse.network
+        paths:
+          - path: /
+            pathType: Prefix
+    tls:
+      - secretName: cassandra-tls
+        hosts:
+          - matverse.network
+
+  resources:
+    requests:
+      memory: "2Gi"
+      cpu: "1000m"
+    limits:
+      memory: "4Gi"
+      cpu: "2000m"
+
+  persistence:
+    enabled: true
+    size: 100Gi
+    storageClass: "fast-ssd"
+    accessModes:
+      - ReadWriteOnce
+
+  autoscaling:
+    enabled: true
+    minReplicas: 3
+    maxReplicas: 10
+    targetCPUUtilizationPercentage: 80
+    targetMemoryUtilizationPercentage: 80
+
+  security:
+    apiTokenSecret: cassandra-api-token
+    requireAuthentication: true
+    ssl:
+      enabled: true
+      autoCert: true
+
+  config:
+    psi_min: 0.82
+    cvar_max: 0.18
+    decision_timeout_ms: 100
+    max_connections: 1000
+    batch_size: 100
+
+postgresql:
+  enabled: true
+  architecture: replication
+  auth:
+    username: matverse
+    password: ""
+    database: cassandra_ledger
+    postgresPassword: ""
+  primary:
+    persistence:
+      size: 50Gi
+  readReplicas:
+    persistence:
+      size: 50Gi
+
+redis:
+  enabled: true
+  architecture: replication
+  auth:
+    password: ""
+  master:
+    persistence:
+      size: 20Gi
+
+monitoring:
+  enabled: true
+  prometheus:
+    scrapeInterval: 30s
+    retention: 30d
+  grafana:
+    adminPassword: ""
+    persistence:
+      enabled: true
+      size: 10Gi
+  alertmanager:
+    enabled: true
+    config:
+      global:
+        slack_api_url: ""
+      route:
+        receiver: slack-notifications
+
+backup:
+  enabled: true
+  schedule: "0 2 * * *"
+  retention: 30d
+  s3:
+    enabled: false
+    bucket: ""
+    endpoint: ""
+    accessKey: ""
+    secretKey: ""
+
+networking:
+  podSecurityPolicy:
+    enabled: true
+  networkPolicy:
+    enabled: true
+  serviceMesh:
+    enabled: false
+    type: istio

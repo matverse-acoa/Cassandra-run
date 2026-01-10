@@ -1,0 +1,58 @@
+{
+  "dashboard": {
+    "title": "Cassandra-MatVerse Production",
+    "tags": ["cassandra", "matverse", "production"],
+    "panels": [
+      {
+        "title": "API Health Status",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "up{job=\"cassandra-matverse\"}",
+            "legendFormat": "{{instance}}"
+          }
+        ],
+        "thresholds": {
+          "steps": [
+            {"color": "red", "value": null},
+            {"color": "green", "value": 1}
+          ]
+        }
+      },
+      {
+        "title": "Request Rate",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "rate(http_requests_total[5m])",
+            "legendFormat": "{{method}} {{endpoint}}"
+          }
+        ]
+      },
+      {
+        "title": "Memory Usage",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "process_resident_memory_bytes",
+            "legendFormat": "{{instance}}"
+          }
+        ]
+      },
+      {
+        "title": "Blockchain Metrics",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "cassandra_blocks_total",
+            "legendFormat": "Total Blocks"
+          },
+          {
+            "expr": "cassandra_transactions_total",
+            "legendFormat": "Total Transactions"
+          }
+        ]
+      }
+    ]
+  }
+}
