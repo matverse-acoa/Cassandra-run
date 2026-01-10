@@ -47,6 +47,9 @@ class DeploymentConfig:
 
     # Segurança
     api_token: Optional[str] = None
+    postgres_password: Optional[str] = None
+    redis_password: Optional[str] = None
+    grafana_password: Optional[str] = None
     require_authentication: bool = True
     ssl_enabled: bool = True
 
@@ -85,6 +88,16 @@ class DeploymentConfig:
             self.report_file = Path(self.report_file)
         if not self.api_token:
             self.api_token = secrets.token_hex(32)
+        if not self.postgres_password:
+            self.postgres_password = self._generate_secret()
+        if not self.redis_password:
+            self.redis_password = self._generate_secret()
+        if not self.grafana_password:
+            self.grafana_password = self._generate_secret()
+
+    @staticmethod
+    def _generate_secret() -> str:
+        return secrets.token_urlsafe(32)
 
 
 # ============================================================================
@@ -185,8 +198,20 @@ WantedBy=multi-user.target
         return True
 
     def _apply_install_script_patch(self) -> bool:
-        """Placeholder para patch de script de instalação"""
-        return False
+        """Garante que o script de instalação esteja executável"""
+        candidate_paths = [
+            Path("scripts/deploy-production.sh"),
+            self.config.base_dir / "bin" / "deploy-production.sh",
+        ]
+        patched = False
+        for script_path in candidate_paths:
+            if script_path.exists():
+                current_mode = script_path.stat().st_mode
+                script_path.chmod(current_mode | 0o111)
+                patched = True
+        if patched:
+            self.logger.info("✅ Patch de script de instalação aplicado")
+        return patched
 
     def _apply_core_python_patch(self) -> bool:
         """Aplica patches no código Python principal"""
@@ -237,12 +262,30 @@ os.makedirs(_log_dir, exist_ok=True)
         return True
 
     def _apply_security_patch(self) -> bool:
-        """Placeholder para patch de segurança"""
-        return False
+        """Aplica hardening básico de permissões"""
+        targets = [
+            self.config.config_dir,
+            self.config.log_dir,
+            self.config.data_dir,
+        ]
+        patched = False
+        for target in targets:
+            if target.exists():
+                target.chmod(0o750)
+                patched = True
+        if patched:
+            self.logger.info("✅ Patch de segurança aplicado")
+        return patched
 
     def _apply_monitoring_patch(self) -> bool:
-        """Placeholder para patch de monitoramento"""
-        return False
+        """Cria diretórios básicos de monitoramento quando aplicável"""
+        if not self.config.prometheus_enabled:
+            return False
+        monitoring_dir = self.config.config_dir / "monitoring"
+        monitoring_dir.mkdir(parents=True, exist_ok=True)
+        (monitoring_dir / ".keep").write_text("monitoring")
+        self.logger.info("✅ Patch de monitoramento aplicado")
+        return True
 
 
 # ============================================================================
@@ -525,11 +568,12 @@ vm.overcommit_memory = 1
         env_lines = [
             f"MATVERSE_NETWORK={self.config.network}",
             f"MATVERSE_API_TOKEN={self.config.api_token}",
-            "POSTGRES_PASSWORD=ChangeThisPassword",
-            "REDIS_PASSWORD=ChangeThisPassword",
-            "GRAFANA_PASSWORD=ChangeThisPassword",
+            f"POSTGRES_PASSWORD={self.config.postgres_password}",
+            f"REDIS_PASSWORD={self.config.redis_password}",
+            f"GRAFANA_PASSWORD={self.config.grafana_password}",
         ]
         env_file.write_text("\n".join(env_lines) + "\n")
+        env_file.chmod(0o600)
 
         docker_compose_cmd = None
         if shutil.which("docker"):
@@ -679,12 +723,58 @@ scrape_configs:
             return False
 
     async def _test_database_connection(self) -> bool:
-        """Placeholder para teste de banco de dados"""
-        return True
+        """Valida acesso TCP aos serviços de dados."""
+        if self.config.deployment_mode != "docker":
+            self.logger.info("ℹ️  Teste de dados ignorado no modo %s", self.config.deployment_mode)
+            return True
+
+        postgres_ok = await self._check_tcp_port("127.0.0.1", 5432)
+        redis_ok = await self._check_tcp_port("127.0.0.1", 6379)
+
+        if not postgres_ok:
+            self.logger.warning("⚠️  Postgres não respondeu em 5432")
+        if not redis_ok:
+            self.logger.warning("⚠️  Redis não respondeu em 6379")
+
+        return postgres_ok and redis_ok
 
     async def _test_monitoring(self) -> bool:
-        """Placeholder para teste de monitoramento"""
-        return True
+        """Valida endpoints básicos de monitoramento."""
+        if not self.config.prometheus_enabled:
+            return True
+
+        checks = [
+            await self._check_http_endpoint("http://localhost:9090/-/healthy"),
+        ]
+        if self.config.grafana_enabled:
+            checks.append(await self._check_http_endpoint("http://localhost:3000/api/health"))
+        checks.append(await self._check_tcp_port("127.0.0.1", 9100))
+
+        if not checks[0]:
+            self.logger.warning("⚠️  Prometheus não respondeu")
+        if self.config.grafana_enabled and len(checks) > 1 and not checks[1]:
+            self.logger.warning("⚠️  Grafana não respondeu")
+        if not checks[-1]:
+            self.logger.warning("⚠️  Node exporter não respondeu")
+
+        return all(checks)
+
+    async def _check_tcp_port(self, host: str, port: int, timeout: float = 2.0) -> bool:
+        try:
+            await asyncio.wait_for(asyncio.open_connection(host, port), timeout=timeout)
+            return True
+        except Exception:
+            return False
+
+    async def _check_http_endpoint(self, url: str, timeout: float = 3.0) -> bool:
+        import aiohttp
+
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.get(url, timeout=timeout) as response:
+                    return response.status == 200
+        except Exception:
+            return False
 
     def _test_docker_services(self) -> bool:
         compose_target = self.config.base_dir / "docker-compose.yml"
