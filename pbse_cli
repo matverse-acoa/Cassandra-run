@@ -1,0 +1,4 @@
+#!/bin/sh
+
+echo '{"decision":"FAIL","record_hash":"","new_root":""}'
+exit 1
