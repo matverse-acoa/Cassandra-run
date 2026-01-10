@@ -1,0 +1,27 @@
+{
+  "schema": "matverse.node.register.v1",
+  "node": {
+    "name": "cassandra-run-01",
+    "role": [
+      "decision",
+      "audit",
+      "execution"
+    ]
+  },
+  "inputs": {
+    "ledger_path": "/var/lib/matverse/ledger.jsonl",
+    "policy_path": "/etc/matverse/policy_pack.json",
+    "pubkey_path": "/etc/matverse/node.pub"
+  },
+  "registration": {
+    "node_id": "TBD",
+    "status": "pending",
+    "root_sha3_256": "TBD",
+    "tx_hash": "TBD",
+    "registered_at": "TBD"
+  },
+  "commands": {
+    "register_node": "matversectl register-node --name cassandra-run-01 --ledger /var/lib/matverse/ledger.jsonl --policy /etc/matverse/policy_pack.json --pubkey /etc/matverse/node.pub",
+    "join_network": "matversectl join-network --bootstrap https://api.matverse.com/bootstrap --tx-hash <sha3_from_manifest>"
+  }
+}
