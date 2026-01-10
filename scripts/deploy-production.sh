@@ -28,7 +28,23 @@ log_error() {
 check_requirements() {
     log_info "Verificando requisitos..."
 
-    local requirements=("python3" "docker" "systemctl" "openssl")
+    local requirements=("python3" "openssl")
+
+    case "$DEPLOY_MODE" in
+        "systemd")
+            requirements+=("systemctl")
+            ;;
+        "docker")
+            requirements+=("docker" "docker-compose" "envsubst")
+            ;;
+        "kubernetes")
+            requirements+=("kubectl")
+            ;;
+        *)
+            log_error "Modo desconhecido: $DEPLOY_MODE"
+            return 1
+            ;;
+    esac
     for cmd in "${requirements[@]}"; do
         if ! command -v "$cmd" &> /dev/null; then
             log_error "$cmd não encontrado"
