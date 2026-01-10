@@ -1,0 +1,63 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    cluster: 'matverse-production'
+    environment: 'production'
+
+rule_files:
+  - /etc/prometheus/rules/*.yml
+
+scrape_configs:
+  - job_name: 'cassandra-matverse'
+    static_configs:
+      - targets:
+        - 'cassandra-node-1:8545'
+        - 'cassandra-node-2:8545'
+        - 'cassandra-node-3:8545'
+    metrics_path: '/metrics'
+    scrape_interval: 10s
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: instance
+      - source_labels: [__meta_kubernetes_pod_name]
+        target_label: pod
+
+  - job_name: 'node-exporter'
+    static_configs:
+      - targets:
+        - 'node-exporter:9100'
+    scrape_interval: 15s
+
+  - job_name: 'postgres-exporter'
+    static_configs:
+      - targets:
+        - 'postgres-exporter:9187'
+    params:
+      dsn: ['postgresql://matverse:${POSTGRES_PASSWORD}@postgres:5432/cassandra_ledger?sslmode=disable']
+
+  - job_name: 'redis-exporter'
+    static_configs:
+      - targets:
+        - 'redis-exporter:9121'
+    params:
+      check-keys: ['*']
+
+  - job_name: 'kubernetes-nodes'
+    kubernetes_sd_configs:
+      - role: node
+    relabel_configs:
+      - action: labelmap
+        regex: __meta_kubernetes_node_label_(.+)
+      - target_label: __address__
+        replacement: kubernetes.default.svc:443
+      - source_labels: [__meta_kubernetes_node_name]
+        regex: (.+)
+        target_label: __metrics_path__
+        replacement: /api/v1/nodes/${1}/proxy/metrics
+
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets:
+          - 'alertmanager:9093'
