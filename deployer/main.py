@@ -823,7 +823,12 @@ scrape_configs:
 
     async def _check_tcp_port(self, host: str, port: int, timeout: float = 2.0) -> bool:
         try:
-            await asyncio.wait_for(asyncio.open_connection(host, port), timeout=timeout)
+            reader, writer = await asyncio.wait_for(
+                asyncio.open_connection(host, port),
+                timeout=timeout,
+            )
+            writer.close()
+            await writer.wait_closed()
             return True
         except Exception:
             return False
