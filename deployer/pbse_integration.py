@@ -8,10 +8,11 @@ Descrição: Módulo determinístico de validação antifrágil.
 Executa o kernel PBSE antes de qualquer mutação no ledger.
 """
 
-import json
 import hashlib
+import json
 import subprocess
 from pathlib import Path
+from typing import Sequence
 
 # Caminhos padrão de produção
 PBSE_CLI = Path("/usr/local/bin/pbse_cli")
@@ -25,8 +26,14 @@ def _sha3(data: bytes) -> str:
     return hashlib.sha3_256(data).hexdigest()
 
 
-def _run_cmd(cmd: list[str]) -> str:
-    result = subprocess.run(cmd, capture_output=True, text=True, check=False)
+def _run_cmd(cmd: Sequence[str], timeout: float = 10.0) -> str:
+    result = subprocess.run(
+        list(cmd),
+        capture_output=True,
+        text=True,
+        check=False,
+        timeout=timeout,
+    )
     if result.returncode != 0:
         raise RuntimeError(result.stderr.strip())
     return result.stdout.strip()
@@ -36,7 +43,16 @@ def _run_cmd(cmd: list[str]) -> str:
 
 def verify_payload(payload: dict) -> dict:
     """Valida entrada com PBSE determinístico."""
-    payload_bytes = json.dumps(payload, sort_keys=True).encode()
+    if not PBSE_CLI.exists():
+        raise FileNotFoundError(f"PBSE CLI não encontrado em {PBSE_CLI}")
+    if not POLICY_PACK.exists():
+        raise FileNotFoundError(f"Policy pack não encontrado em {POLICY_PACK}")
+    if not POLICY_SIG.exists():
+        raise FileNotFoundError(f"Policy signature não encontrada em {POLICY_SIG}")
+
+    payload_bytes = json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode(
+        "utf-8"
+    )
     input_hash = _sha3(payload_bytes)
 
     cmd = [
@@ -74,7 +90,11 @@ def audit_record(payload: dict, ledger_path: Path) -> None:
     entry = {
         "payload": payload,
         "proof": proof,
-        "sha3": _sha3(json.dumps(proof, sort_keys=True).encode()),
+        "sha3": _sha3(
+            json.dumps(proof, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode(
+                "utf-8"
+            )
+        ),
     }
     ledger_path.parent.mkdir(parents=True, exist_ok=True)
     with ledger_path.open("a", encoding="utf-8") as f:

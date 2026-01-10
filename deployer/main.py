@@ -7,10 +7,12 @@ Produção Soberana | Versão 1.0.0
 import asyncio
 import json
 import logging
+import os
 import secrets
 import shutil
 import subprocess
 import sys
+import tempfile
 import time
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -22,6 +24,47 @@ import yaml
 # ============================================================================
 # CONFIGURAÇÃO DO SISTEMA
 # ============================================================================
+
+
+def _write_text_atomic(path: Path, content: str, mode: Optional[int] = None) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with tempfile.NamedTemporaryFile(
+        "w",
+        encoding="utf-8",
+        dir=path.parent,
+        delete=False,
+    ) as tmp_file:
+        tmp_file.write(content)
+        tmp_file.flush()
+        os.fsync(tmp_file.fileno())
+        tmp_path = Path(tmp_file.name)
+    if mode is not None:
+        tmp_path.chmod(mode)
+    tmp_path.replace(path)
+    if mode is not None:
+        path.chmod(mode)
+
+
+def _write_bytes_atomic(path: Path, content: bytes, mode: Optional[int] = None) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with tempfile.NamedTemporaryFile(
+        "wb",
+        dir=path.parent,
+        delete=False,
+    ) as tmp_file:
+        tmp_file.write(content)
+        tmp_file.flush()
+        os.fsync(tmp_file.fileno())
+        tmp_path = Path(tmp_file.name)
+    if mode is not None:
+        tmp_path.chmod(mode)
+    tmp_path.replace(path)
+    if mode is not None:
+        path.chmod(mode)
+
+
+def _copy_file_atomic(src: Path, dst: Path, mode: Optional[int] = None) -> None:
+    _write_bytes_atomic(dst, src.read_bytes(), mode=mode)
 
 
 @dataclass
@@ -170,6 +213,20 @@ NoNewPrivileges=true
 PrivateTmp=true
 ProtectSystem=strict
 ProtectHome=true
+PrivateDevices=true
+ProtectKernelLogs=true
+ProtectKernelModules=true
+ProtectKernelTunables=true
+ProtectControlGroups=true
+ProtectClock=true
+ProtectHostname=true
+LockPersonality=true
+MemoryDenyWriteExecute=true
+RestrictSUIDSGID=true
+RestrictRealtime=true
+RestrictNamespaces=true
+SystemCallArchitectures=native
+UMask=0077
 ReadWritePaths=/var/lib/cassandra-matverse
 ReadWritePaths=/var/log/cassandra-matverse
 ReadWritePaths=/opt/cassandra-matverse/venv
@@ -191,8 +248,10 @@ RestartSec=10
 WantedBy=multi-user.target
 """
 
-        service_file.write_text(
-            patch_content.format(api_token=self.config.api_token, network=self.config.network)
+        _write_text_atomic(
+            service_file,
+            patch_content.format(api_token=self.config.api_token, network=self.config.network),
+            mode=0o644,
         )
         self.logger.info("✅ Patch systemd aplicado")
         return True
@@ -253,11 +312,12 @@ os.makedirs(_log_dir, exist_ok=True)
             ),
         ]
 
-        content = main_file.read_text()
+        content = main_file.read_text(encoding="utf-8")
         for old, new in patches:
             content = content.replace(old, new)
 
-        main_file.write_text(content)
+        mode = main_file.stat().st_mode & 0o777
+        _write_text_atomic(main_file, content, mode=mode)
         self.logger.info("✅ Patches Python aplicados")
         return True
 
@@ -283,7 +343,7 @@ os.makedirs(_log_dir, exist_ok=True)
             return False
         monitoring_dir = self.config.config_dir / "monitoring"
         monitoring_dir.mkdir(parents=True, exist_ok=True)
-        (monitoring_dir / ".keep").write_text("monitoring")
+        _write_text_atomic(monitoring_dir / ".keep", "monitoring\n", mode=0o644)
         self.logger.info("✅ Patch de monitoramento aplicado")
         return True
 
@@ -409,7 +469,7 @@ cassandra hard memlock unlimited
 """
 
         limits_file = Path("/etc/security/limits.d/cassandra.conf")
-        limits_file.write_text(limits_content)
+        _write_text_atomic(limits_file, limits_content, mode=0o644)
 
         sysctl_content = """net.core.somaxconn = 65535
 net.ipv4.tcp_max_syn_backlog = 65535
@@ -420,7 +480,7 @@ vm.overcommit_memory = 1
 """
 
         sysctl_file = Path("/etc/sysctl.d/99-cassandra.conf")
-        sysctl_file.write_text(sysctl_content)
+        _write_text_atomic(sysctl_file, sysctl_content, mode=0o644)
 
         subprocess.run(["sysctl", "-p", str(sysctl_file)], check=False)
 
@@ -526,8 +586,7 @@ vm.overcommit_memory = 1
             dst = self.config.base_dir / "bin" / file
             if src.exists():
                 dst.parent.mkdir(parents=True, exist_ok=True)
-                dst.write_bytes(src.read_bytes())
-                dst.chmod(0o755)
+                _copy_file_atomic(src, dst, mode=0o755)
 
         config_files = ["config.toml", "config.json", "config.yaml"]
         for file in config_files:
@@ -535,14 +594,14 @@ vm.overcommit_memory = 1
             dst = self.config.config_dir / file
             if src.exists():
                 dst.parent.mkdir(parents=True, exist_ok=True)
-                dst.write_bytes(src.read_bytes())
+                _copy_file_atomic(src, dst, mode=0o640)
 
         service_files = ["cassandra-matverse.service", "cassandra-matverse-monitor.service"]
         for file in service_files:
             src = Path(f"deploy/systemd/{file}")
             dst = Path(f"/etc/systemd/system/{file}")
             if src.exists():
-                dst.write_bytes(src.read_bytes())
+                _copy_file_atomic(src, dst, mode=0o644)
 
         subprocess.run(["systemctl", "daemon-reload"], check=False)
 
@@ -561,7 +620,11 @@ vm.overcommit_memory = 1
             raise FileNotFoundError(f"Arquivo Docker Compose não encontrado: {compose_source}")
         compose_target = self.config.base_dir / "docker-compose.yml"
         compose_target.parent.mkdir(parents=True, exist_ok=True)
-        compose_target.write_text(compose_source.read_text())
+        _write_text_atomic(
+            compose_target,
+            compose_source.read_text(encoding="utf-8"),
+            mode=0o640,
+        )
 
         env_file = self.config.config_dir / "docker.env"
         env_file.parent.mkdir(parents=True, exist_ok=True)
@@ -572,8 +635,7 @@ vm.overcommit_memory = 1
             f"REDIS_PASSWORD={self.config.redis_password}",
             f"GRAFANA_PASSWORD={self.config.grafana_password}",
         ]
-        env_file.write_text("\n".join(env_lines) + "\n")
-        env_file.chmod(0o600)
+        _write_text_atomic(env_file, "\n".join(env_lines) + "\n", mode=0o600)
 
         docker_compose_cmd = None
         if shutil.which("docker"):
@@ -659,7 +721,7 @@ scrape_configs:
 
         prometheus_dir = Path("/etc/prometheus")
         prometheus_dir.mkdir(exist_ok=True)
-        (prometheus_dir / "prometheus.yml").write_text(prometheus_config)
+        _write_text_atomic(prometheus_dir / "prometheus.yml", prometheus_config, mode=0o644)
 
         services = ["prometheus", "grafana-server", "node-exporter"]
         for service in services:
@@ -846,8 +908,7 @@ scrape_configs:
         report_file = self.config.report_file
         if report_file is None:
             return
-        report_file.parent.mkdir(parents=True, exist_ok=True)
-        report_file.write_text(json.dumps(report, indent=2))
+        _write_text_atomic(report_file, json.dumps(report, indent=2), mode=0o600)
 
 
 # ==========================================================================
