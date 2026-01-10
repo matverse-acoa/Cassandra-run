@@ -1,0 +1,24 @@
+version: '1.0'
+name: cassandra-matverse-production
+description: Sistema Soberano de Produção Completo
+
+components:
+  - name: infra
+    type: terraform-modules
+    path: infra/
+
+  - name: deployment-agent
+    type: python-package
+    path: deployer/
+
+  - name: monitoring
+    type: prometheus-grafana
+    path: monitoring/
+
+  - name: k8s-manifests
+    type: helm-charts
+    path: k8s/
+
+  - name: ci-cd
+    type: github-actions
+    path: .github/

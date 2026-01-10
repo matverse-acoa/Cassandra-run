@@ -1,0 +1,259 @@
+version: '3.8'
+
+x-cassandra-defaults: &cassandra-defaults
+  image: matverse/cassandra-node:1.0.0
+  restart: unless-stopped
+  user: "1000:1000"
+  logging:
+    driver: "json-file"
+    options:
+      max-size: "10m"
+      max-file: "3"
+  healthcheck:
+    test: ["CMD", "curl", "-f", "http://localhost:8545/health"]
+    interval: 30s
+    timeout: 10s
+    retries: 3
+    start_period: 60s
+
+services:
+  cassandra-node-1:
+    <<: *cassandra-defaults
+    container_name: cassandra-1
+    hostname: cassandra-1
+    ports:
+      - "8545:8545"
+      - "30303:30303"
+      - "30303:30303/udp"
+    environment:
+      - NODE_NAME=cassandra-1
+      - NODE_ROLE=validator
+      - MATVERSE_NETWORK=${MATVERSE_NETWORK:-mainnet}
+      - MATVERSE_API_TOKEN=${MATVERSE_API_TOKEN}
+      - MATVERSE_LOG_LEVEL=info
+      - MATVERSE_P2P_SEEDS=cassandra-2:30303,cassandra-3:30303
+    volumes:
+      - cassandra_data_1:/var/lib/cassandra-matverse
+      - cassandra_logs_1:/var/log/cassandra-matverse
+      - ./config/production:/etc/cassandra-matverse:ro
+    networks:
+      - matverse-net
+    depends_on:
+      - postgres
+      - redis
+
+  cassandra-node-2:
+    <<: *cassandra-defaults
+    container_name: cassandra-2
+    hostname: cassandra-2
+    ports:
+      - "8546:8545"
+      - "30304:30303"
+      - "30304:30303/udp"
+    environment:
+      - NODE_NAME=cassandra-2
+      - NODE_ROLE=validator
+      - MATVERSE_NETWORK=${MATVERSE_NETWORK:-mainnet}
+      - MATVERSE_API_TOKEN=${MATVERSE_API_TOKEN}
+      - MATVERSE_LOG_LEVEL=info
+      - MATVERSE_P2P_SEEDS=cassandra-1:30303,cassandra-3:30303
+    volumes:
+      - cassandra_data_2:/var/lib/cassandra-matverse
+      - cassandra_logs_2:/var/log/cassandra-matverse
+      - ./config/production:/etc/cassandra-matverse:ro
+    networks:
+      - matverse-net
+    depends_on:
+      - postgres
+      - redis
+
+  cassandra-node-3:
+    <<: *cassandra-defaults
+    container_name: cassandra-3
+    hostname: cassandra-3
+    ports:
+      - "8547:8545"
+      - "30305:30303"
+      - "30305:30303/udp"
+    environment:
+      - NODE_NAME=cassandra-3
+      - NODE_ROLE=validator
+      - MATVERSE_NETWORK=${MATVERSE_NETWORK:-mainnet}
+      - MATVERSE_API_TOKEN=${MATVERSE_API_TOKEN}
+      - MATVERSE_LOG_LEVEL=info
+      - MATVERSE_P2P_SEEDS=cassandra-1:30303,cassandra-2:30303
+    volumes:
+      - cassandra_data_3:/var/lib/cassandra-matverse
+      - cassandra_logs_3:/var/log/cassandra-matverse
+      - ./config/production:/etc/cassandra-matverse:ro
+    networks:
+      - matverse-net
+    depends_on:
+      - postgres
+      - redis
+
+  postgres:
+    image: postgres:15-alpine
+    container_name: cassandra-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: matverse
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-ChangeThisPassword}
+      POSTGRES_DB: cassandra_ledger
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8 --lc-collate=C --lc-ctype=C"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init/postgres-init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    ports:
+      - "5432:5432"
+    networks:
+      - matverse-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U matverse"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  redis:
+    image: redis:7-alpine
+    container_name: cassandra-redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:-ChangeThisPassword}
+    volumes:
+      - redis_data:/data
+    ports:
+      - "6379:6379"
+    networks:
+      - matverse-net
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD:-ChangeThisPassword}", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: cassandra-prometheus
+    restart: unless-stopped
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--storage.tsdb.retention.time=30d'
+      - '--web.enable-lifecycle'
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    ports:
+      - "9090:9090"
+    networks:
+      - matverse-net
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:9090/-/healthy"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: cassandra-grafana
+    restart: unless-stopped
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:-ChangeThisPassword}
+      GF_INSTALL_PLUGINS: grafana-piechart-panel
+      GF_SERVER_ROOT_URL: "https://grafana.matverse.network"
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
+    ports:
+      - "3000:3000"
+    networks:
+      - matverse-net
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  node-exporter:
+    image: prom/node-exporter:latest
+    container_name: cassandra-node-exporter
+    restart: unless-stopped
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/rootfs:ro
+    command:
+      - '--path.procfs=/host/proc'
+      - '--path.sysfs=/host/sys'
+      - '--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)'
+    ports:
+      - "9100:9100"
+    networks:
+      - matverse-net
+
+  nginx:
+    image: nginx:alpine
+    container_name: cassandra-nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/conf.d:/etc/nginx/conf.d:ro
+      - ./nginx/ssl:/etc/nginx/ssl:ro
+      - ./nginx/html:/usr/share/nginx/html:ro
+    networks:
+      - matverse-net
+    depends_on:
+      - cassandra-node-1
+      - cassandra-node-2
+      - cassandra-node-3
+    healthcheck:
+      test: ["CMD", "nginx", "-t"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  backup:
+    image: alpine:latest
+    container_name: cassandra-backup
+    restart: unless-stopped
+    volumes:
+      - cassandra_data_1:/data/node1:ro
+      - cassandra_data_2:/data/node2:ro
+      - cassandra_data_3:/data/node3:ro
+      - backup_data:/backup
+      - ./scripts/backup.sh:/backup.sh:ro
+    environment:
+      - BACKUP_SCHEDULE=0 2 * * *
+      - BACKUP_RETENTION_DAYS=30
+      - S3_BUCKET=${S3_BUCKET}
+      - S3_ENDPOINT=${S3_ENDPOINT}
+    command: ["sh", "/backup.sh"]
+    networks:
+      - matverse-net
+
+networks:
+  matverse-net:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
+          gateway: 172.20.0.1
+
+volumes:
+  cassandra_data_1:
+  cassandra_data_2:
+  cassandra_data_3:
+  cassandra_logs_1:
+  cassandra_logs_2:
+  cassandra_logs_3:
+  postgres_data:
+  redis_data:
+  prometheus_data:
+  grafana_data:
+  backup_data:
