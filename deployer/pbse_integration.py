@@ -14,6 +14,8 @@ import subprocess
 from pathlib import Path
 from typing import Sequence
 
+from deployer.acoa_metrics_adapter import compute_acoa_metrics
+
 # Caminhos padrão de produção
 PBSE_CLI = Path("/usr/local/bin/pbse_cli")
 POLICY_PACK = Path("/etc/matverse/policy_pack.json")
@@ -77,8 +79,10 @@ def verify_payload(payload: dict) -> dict:
 
 
 def enforce(payload: dict) -> dict:
-    """Executa política fail-closed."""
-    decision = verify_payload(payload)
+    """Executa política fail-closed com métricas ACOA explícitas."""
+    metrics = compute_acoa_metrics(payload)
+    enriched_payload = {**payload, "_acoa": metrics}
+    decision = verify_payload(enriched_payload)
     if decision["decision"] != "PASS":
         raise PermissionError(f"PBSE decision={decision['decision']}")
     return decision
