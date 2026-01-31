@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+ROLE="${MATVERSE_ROLE:-unknown}"
+echo "Architectural enforcement for role: ${ROLE}"
+
 required_paths=(
   deployer
   infra
@@ -29,6 +32,23 @@ required_files=(
 
 missing=0
 
+if [[ "${ROLE}" == "foundation" ]]; then
+  forbidden_patterns=(
+    "cosign"
+    "sign_and_anchor.py"
+    "docker"
+    "kubectl"
+    "terraform"
+  )
+elif [[ "${ROLE}" == "runtime" ]]; then
+  forbidden_patterns=(
+    "terraform apply"
+    "kubectl apply"
+  )
+else
+  forbidden_patterns=()
+fi
+
 for path in "${required_paths[@]}"; do
   if [[ ! -e "${path}" ]]; then
     echo "Missing required path: ${path}" >&2
@@ -43,9 +63,18 @@ for path in "${required_files[@]}"; do
   fi
 done
 
-if ! rg -q "^## Arquitetura$" README.md; then
-  echo "README.md is missing the 'Arquitetura' section header." >&2
-  missing=1
+for pattern in "${forbidden_patterns[@]}"; do
+  if grep -R "${pattern}" . >/dev/null; then
+    echo "ERROR: Forbidden pattern for role ${ROLE}: ${pattern}" >&2
+    missing=1
+  fi
+done
+
+if [[ "${ROLE}" == "foundation" ]]; then
+  if ! grep -q "Arquitetura" README.md; then
+    echo "README.md is missing the 'Arquitetura' section header." >&2
+    missing=1
+  fi
 fi
 
 if [[ ${missing} -ne 0 ]]; then

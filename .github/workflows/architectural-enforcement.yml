@@ -9,6 +9,8 @@ on:
 jobs:
   enforce-architecture:
     runs-on: ubuntu-latest
+    env:
+      MATVERSE_ROLE: foundation
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
