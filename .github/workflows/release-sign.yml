@@ -6,66 +6,39 @@ on:
       - "v*"
 
 permissions:
-  contents: read
-  id-token: write
+  contents: write
+  id-token: write   # necessário para cosign keyless (OIDC)
 
 jobs:
-  sign-release:
+  sign-and-anchor:
     runs-on: ubuntu-latest
-    env:
-      VERSION: ${{ github.ref_name }}
-      RELEASE_NAME: cassandra-run-pbse-${{ github.ref_name }}
-      OUTPUT_ZIP: cassandra-run-pbse-${{ github.ref_name }}.zip
-      MANIFEST_FILE: MANIFEST.sha3
-      RELEASE_FILE: RELEASE.txt
-      RELEASE_ITEMS: >-
-        deployer infra k8s monitoring scripts docker-compose.production.yml stack.yml
-        Ω-NODE-REGISTER.json README.md
 
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Install release tooling
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y zip libdigest-sha3-perl
+      - uses: actions/checkout@v4
 
       - name: Install cosign
         uses: sigstore/cosign-installer@v3
 
-      - name: Package release
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Verify release context
         run: |
-          ./scripts/package-release.sh "${VERSION}"
+          echo "Signing release $GITHUB_REF"
+          test "${GITHUB_REF_TYPE}" = "tag"
 
-      - name: Sign release artifacts
+      - name: Generate coherence proof
         run: |
-          cosign sign-blob --yes \
-            --output-signature "${OUTPUT_ZIP}.sig" \
-            --output-certificate "${OUTPUT_ZIP}.crt" \
-            "${OUTPUT_ZIP}"
+          python mvp/scripts/generate_coherence_proof.py > coherence_proof.json
 
-          cosign sign-blob --yes \
-            --output-signature "${MANIFEST_FILE}.sig" \
-            --output-certificate "${MANIFEST_FILE}.crt" \
-            "${MANIFEST_FILE}"
+      - name: Sign and anchor coherence proof
+        run: |
+          python mvp/scripts/sign_and_anchor.py coherence_proof.json
 
-          cosign sign-blob --yes \
-            --output-signature "${RELEASE_FILE}.sig" \
-            --output-certificate "${RELEASE_FILE}.crt" \
-            "${RELEASE_FILE}"
-
-      - name: Upload signed artifacts
+      - name: Upload signed artifact
         uses: actions/upload-artifact@v4
         with:
-          name: cassandra-run-release-${{ github.ref_name }}
-          path: |
-            ${{ env.OUTPUT_ZIP }}
-            ${{ env.MANIFEST_FILE }}
-            ${{ env.RELEASE_FILE }}
-            ${{ env.OUTPUT_ZIP }}.sig
-            ${{ env.OUTPUT_ZIP }}.crt
-            ${{ env.MANIFEST_FILE }}.sig
-            ${{ env.MANIFEST_FILE }}.crt
-            ${{ env.RELEASE_FILE }}.sig
-            ${{ env.RELEASE_FILE }}.crt
+          name: coherence-proof-signed
+          path: coherence_proof.json

@@ -1,0 +1,33 @@
+name: Architectural Enforcement
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  enforce:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Enforce architectural invariants
+        run: |
+          echo "Enforcing architectural invariants..."
+
+          if rg -n "cosign|sign_and_anchor.py" .github/workflows \
+            | rg -v "release-sign.yml"; then
+            echo "ERROR: Signing is only allowed in release-sign.yml"
+            exit 1
+          fi
+
+          if rg -n "pull_request" .github/workflows/release-sign.yml; then
+            echo "ERROR: release-sign.yml must not run on pull_request"
+            exit 1
+          fi
+
+          if ! rg -n "tags:" .github/workflows/release-sign.yml; then
+            echo "ERROR: release-sign.yml must only run on tag pushes"
+            exit 1
+          fi
+
+          echo "Architecture respected."
