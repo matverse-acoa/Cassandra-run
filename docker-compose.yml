@@ -1,0 +1,30 @@
+version: '3.8'
+
+services:
+  db:
+    image: postgres:15
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: cassandra_run
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./schema.sql:/docker-entrypoint-initdb.d/schema.sql
+
+  api:
+    build: .
+    environment:
+      CAS_RUN_DATABASE_URL: postgresql://postgres:postgres@db:5432/cassandra_run
+      CAS_RUN_TOKEN: ${CAS_RUN_TOKEN}
+      CAS_RUN_API_HOST: 0.0.0.0
+      CAS_RUN_API_PORT: 8080
+      CAS_RUN_PBSE_ENDPOINT: ${CAS_RUN_PBSE_ENDPOINT:-http://pbse:8001}
+    ports:
+      - "8080:8080"
+    depends_on:
+      - db
+
+volumes:
+  postgres_data:
