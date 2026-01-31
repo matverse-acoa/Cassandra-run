@@ -1,0 +1,71 @@
+name: Cassandra-Run Release Signing
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  sign-release:
+    runs-on: ubuntu-latest
+    env:
+      VERSION: ${{ github.ref_name }}
+      RELEASE_NAME: cassandra-run-pbse-${{ github.ref_name }}
+      OUTPUT_ZIP: cassandra-run-pbse-${{ github.ref_name }}.zip
+      MANIFEST_FILE: MANIFEST.sha3
+      RELEASE_FILE: RELEASE.txt
+      RELEASE_ITEMS: >-
+        deployer infra k8s monitoring scripts docker-compose.production.yml stack.yml
+        Ω-NODE-REGISTER.json README.md
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install release tooling
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y zip libdigest-sha3-perl
+
+      - name: Install cosign
+        uses: sigstore/cosign-installer@v3
+
+      - name: Package release
+        run: |
+          ./scripts/package-release.sh "${VERSION}"
+
+      - name: Sign release artifacts
+        run: |
+          cosign sign-blob --yes \
+            --output-signature "${OUTPUT_ZIP}.sig" \
+            --output-certificate "${OUTPUT_ZIP}.crt" \
+            "${OUTPUT_ZIP}"
+
+          cosign sign-blob --yes \
+            --output-signature "${MANIFEST_FILE}.sig" \
+            --output-certificate "${MANIFEST_FILE}.crt" \
+            "${MANIFEST_FILE}"
+
+          cosign sign-blob --yes \
+            --output-signature "${RELEASE_FILE}.sig" \
+            --output-certificate "${RELEASE_FILE}.crt" \
+            "${RELEASE_FILE}"
+
+      - name: Upload signed artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: cassandra-run-release-${{ github.ref_name }}
+          path: |
+            ${{ env.OUTPUT_ZIP }}
+            ${{ env.MANIFEST_FILE }}
+            ${{ env.RELEASE_FILE }}
+            ${{ env.OUTPUT_ZIP }}.sig
+            ${{ env.OUTPUT_ZIP }}.crt
+            ${{ env.MANIFEST_FILE }}.sig
+            ${{ env.MANIFEST_FILE }}.crt
+            ${{ env.RELEASE_FILE }}.sig
+            ${{ env.RELEASE_FILE }}.crt
