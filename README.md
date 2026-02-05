@@ -1,131 +1,88 @@
-# Cassandra-run — Sovereign Runtime Node
+# Cassandra-run
 
-Cassandra-run é o **runtime soberano** do MatVerse.
-
-Ele executa ações **somente após aprovação explícita**
-de um kernel normativo (PBSE) e registra todos os efeitos
-em um ledger imutável.
+> **Repositório Oficial da Consistência, Coerência e Observabilidade do MatVerse**
+> **Status:** Ativo
+> **Mantenedor:** Mateus Alves Arêas ([ORCID 0009-0008-2973-4047](https://orcid.org/0009-0008-2973-4047))
 
 ---
 
-## O que este repositório faz
+## ✨ Propósito
 
-- Executa ações aprovadas
-- Escreve registros append-only
-- Garante replay determinístico
-- Expõe API mínima para observação
+O repositório **Cassandra-run** é o núcleo de manutenção e monitoramento da **coerência epistêmica**, integridade dos fluxos e detecção de anomalias constitucionais do ecossistema MatVerse. Sua missão é *manter* o eixo lógico do sistema: observar, analisar e alertar sobre desvios de invariantes e fluxos (especialmente Science → Evidence).
 
 ---
 
-## O que este repositório NÃO faz
+## 📜 Relação Constitucional
 
-- Não define métricas
-- Não decide políticas
-- Não corrige dados científicos
-- Não executa sem registro
-- Não “confia” em contexto implícito
+> Subordinado à [Cláusula de Imutabilidade](https://github.com/matverse-acoa/core/blob/main/CONSTITUTION.md) e à [Lei de Admissibilidade Científica](https://github.com/matverse-acoa/core/blob/main/ADMISSIBILITY.md).
+> Atua em sintonia com os outros soberanos: Organismo, Atlas, Gate.
 
 ---
 
-## Regime Arquitetural
+## 🛠️ Funções Principais
 
-**REGIME: RUNTIME**
-
-Aqui, falha é bloqueio.
-Ausência de prova é negação.
-
----
-
-## Princípios
-
-- Fail-closed
-- Append-only
-- Auditável por padrão
-- Separação total entre decisão e execução
+* **Monitoramento contínuo** dos fluxos críticos e estados do MatVerse.
+* **Detecção automática de desvios** dos invariantes constitucionais.
+* **Alerta e escalonamento** para instâncias superiores em caso de ameaça ao fluxo Science → Evidence.
+* **Registro e análise** de logs de coerência, falhas e eventos de governança.
+* **Auditoria de evolução**: rastreamento de transformações e persistência de causalidade.
 
 ---
 
-## Papel Sistêmico
+## 🗂️ Estrutura dos Conteúdos
 
-Se este repositório falha,
-o sistema inteiro **para**.
-
-Ele é órgão vital, não experimento.
-
----
-
-## Desenvolvimento local
-
-```bash
-python -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-```
-
-Configure as variáveis de ambiente (exemplo):
-
-```bash
-export CAS_RUN_DATABASE_URL=postgresql://postgres:postgres@localhost:5432/cassandra_run
-export CAS_RUN_TOKEN=seu_token_aqui
-export CAS_RUN_PBSE_ENDPOINT=http://localhost:8001
-```
-
-Execute a API:
-
-```bash
-uvicorn cassandra_run.api:app --reload
-```
+* **/consistency/** — Políticas e algoritmos de verificação de coerência
+* **/monitor/** — Scripts e rotinas de monitoramento ativo
+* **/alerts/** — Modelos e templates de alerta (escalonamento, rollback, incidentes)
+* **/logs/** — Padrões de registro, formatos de log, dashboards de observabilidade
+* **/meta/** — Governança do Cassandra, critérios de revisão, processos de escalonamento
 
 ---
 
-## Docker
+## 🚦 Fluxos de Trabalho
 
-```bash
-export CAS_RUN_TOKEN=seu_token_aqui
-export CAS_RUN_PBSE_ENDPOINT=http://localhost:8001
-docker-compose up --build
-```
-
----
-
-## CLI
-
-```bash
-export CAS_RUN_API_URL=http://localhost:8080
-export CAS_RUN_TOKEN=seu_token_aqui
-
-python cli.py submit --payload '{"key": "value"}'
-python cli.py ledger
-python cli.py proof --event-id 1
-python cli.py replay
-```
+1. **Observação**: Coleta contínua de métricas e fluxos relevantes.
+2. **Análise**: Aplicação de algoritmos de consistência (determinismo, preservação semântica, rastreabilidade).
+3. **Alerta**: Disparo de eventos em caso de violação dos invariantes.
+4. **Escalonamento**: Requisição de decisão do Gate/PBSE se necessário.
+5. **Registro**: Atualização do ledger e dashboard de incidentes/coerência.
 
 ---
 
-## Endpoints
+## 🧩 Integração e Dependências
 
-- `POST /submit`
-- `GET /ledger`
-- `GET /proof/{event_id}`
-- `POST /replay`
-
----
-
-## PBSE
-
-O runtime consulta o PBSE em `/evaluate`. Em caso de falha, o evento é bloqueado
-por padrão (fail-closed).
-
-Para desenvolvimento local, execute o mock do PBSE:
-
-```bash
-python mock_pbse.py
-```
+* [core](https://github.com/matverse-acoa/core) — Para métricas e políticas constitucionais.
+* [autopoietcsys](https://github.com/matverse-acoa/autopoietcsys) — Para garantir persistência existencial.
+* [Atlas](https://github.com/matverse-acoa/Atlas) — Para topologia dos fluxos e domínios.
+* [control-plane (Gate/PBSE)](https://github.com/matverse-acoa/control-plane) — Para decisões de escalonamento e admissibilidade.
 
 ---
 
-## Teste de carga (k6)
+## 🛡️ Segurança, Risco e Responsabilidade
 
-```bash
-k6 run --env BASE_URL=http://localhost:8080 --env TOKEN=seu_token load_test.js
-```
+* **Impossível silenciar o Cassandra**: qualquer tentativa é automaticamente registrada e considerada incidente crítico.
+* **Todos os logs de incoerência são imutáveis e assinados**.
+* **Regras de rollback e auto-recuperação** previstas e documentadas.
+
+---
+
+## 📈 Roadmap
+
+* [ ] Publicar políticas de consistência dos principais fluxos
+* [ ] Implementar dashboards de observabilidade
+* [ ] Automatizar protocolos de alerta e rollback
+* [ ] Validar integração com Gate/PBSE e Organismo
+
+---
+
+## 📚 Referências
+
+* [Cláusula de Imutabilidade - Constitution.md](https://github.com/matverse-acoa/core/blob/main/CONSTITUTION.md)
+* [Lei de Admissibilidade Científica - Admissibility.md](https://github.com/matverse-acoa/core/blob/main/ADMISSIBILITY.md)
+* [Atlas](https://github.com/matverse-acoa/Atlas)
+* [control-plane](https://github.com/matverse-acoa/control-plane)
+* [autopoietcsys](https://github.com/matverse-acoa/autopoietcsys)
+
+---
+
+**Cassandra-run: “Manter o eixo é preservar a existência do real.”**
