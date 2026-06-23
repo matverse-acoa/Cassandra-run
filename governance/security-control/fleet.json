@@ -1,40 +1,26 @@
 {
-  "schema_version": "1.0",
-  "policy_version": "1.0.0",
+  "schema_version": "1.1",
+  "policy_version": "1.1.0",
   "control_plane": "matverse-acoa/Cassandra",
   "constitutional_anchor": "matverse-acoa/core",
   "rollout_mode": "pr_only",
+  "expected_repository_count": 76,
+  "managed_owners": [
+    {"name": "MatVerse-py", "kind": "user", "expected_repository_count": 44, "credential_mode": "github_app_installation_or_fine_grained_pat"},
+    {"name": "matverse-acoa", "kind": "organization", "expected_repository_count": 13, "credential_mode": "github_app_installation_or_fine_grained_pat"},
+    {"name": "MatVerse-Hub", "kind": "organization", "expected_repository_count": 14, "credential_mode": "github_app_installation_or_fine_grained_pat"},
+    {"name": "Symbios-Matverse", "kind": "organization", "expected_repository_count": 2, "credential_mode": "github_app_installation_or_fine_grained_pat"},
+    {"name": "MatVerse-U", "kind": "organization", "expected_repository_count": 3, "credential_mode": "github_app_installation_or_fine_grained_pat"}
+  ],
   "automation": {
     "allowed_operations": ["plan", "verify", "apply_policy_pr"],
     "forbidden_operations": ["merge", "deploy", "secret_read", "credential_rotation", "network_scan"]
   },
   "repositories": [
-    {"name": "matverse-acoa/Atlas", "default_branch": "main", "enabled": true},
-    {"name": "matverse-acoa/Cassandra", "default_branch": "main", "enabled": true},
-    {"name": "matverse-acoa/core", "default_branch": "main", "enabled": true},
-    {"name": "matverse-acoa/csi-organism-manager", "default_branch": "main", "enabled": true},
-    {"name": "matverse-acoa/Gate", "default_branch": "main", "enabled": true},
-    {"name": "matverse-acoa/matverse", "default_branch": "main", "enabled": true},
-    {"name": "matverse-acoa/matverse-v5-sovereign", "default_branch": "main", "enabled": true},
-    {"name": "matverse-acoa/matverse_ouroboros", "default_branch": "main", "enabled": true},
-    {"name": "matverse-acoa/mvo-test-results", "default_branch": "main", "enabled": true},
-    {"name": "matverse-acoa/Organismo", "default_branch": "main", "enabled": true},
-    {"name": "matverse-acoa/papers", "default_branch": "main", "enabled": true},
-    {"name": "matverse-acoa/QEX", "default_branch": "main", "enabled": true},
-    {"name": "matverse-acoa/svca-inescapavel", "default_branch": "main", "enabled": true},
-    {"name": "MatVerse-Hub/apk-uploader-pro", "default_branch": "main", "enabled": true},
-    {"name": "MatVerse-Hub/argos-admin-console", "default_branch": "main", "enabled": true},
-    {"name": "MatVerse-Hub/argos-media-integrity", "default_branch": "main", "enabled": true},
-    {"name": "MatVerse-Hub/Captals", "default_branch": "main", "enabled": true},
-    {"name": "MatVerse-Hub/DEv", "default_branch": "main", "enabled": true},
-    {"name": "MatVerse-Hub/forensic-backend", "default_branch": "main", "enabled": true},
-    {"name": "MatVerse-Hub/IQG", "default_branch": "main", "enabled": true},
-    {"name": "MatVerse-Hub/matverse-M-CSQI", "default_branch": "main", "enabled": true},
-    {"name": "MatVerse-Hub/Prim", "default_branch": "main", "enabled": true},
-    {"name": "MatVerse-Hub/Prime", "default_branch": "main", "enabled": true},
-    {"name": "MatVerse-Hub/Superkernel", "default_branch": "main", "enabled": true},
-    {"name": "MatVerse-Hub/SymbiOS", "default_branch": "main", "enabled": true},
-    {"name": "MatVerse-Hub/symbiosV2", "default_branch": "main", "enabled": true},
-    {"name": "MatVerse-Hub/twin", "default_branch": "main", "enabled": true}
+    {"name":"MatVerse-py/matverse-hub","enabled":true},{"name":"MatVerse-py/organismo","enabled":true},{"name":"MatVerse-py/svca-lab","enabled":true},{"name":"MatVerse-py/Core.Eng","enabled":true},{"name":"MatVerse-py/matverse-u-network","enabled":true},{"name":"MatVerse-py/acoa","enabled":true},{"name":"MatVerse-py/SuperKernel-6.0","enabled":true},{"name":"MatVerse-py/gpt-cassndra--pilot","enabled":true},{"name":"MatVerse-py/matverse-organism","enabled":true},{"name":"MatVerse-py/matverse-u-verifier","enabled":true},{"name":"MatVerse-py/infra-root","enabled":true},{"name":"MatVerse-py/mem-nano-bit","enabled":true},{"name":"MatVerse-py/MatVerse-Page","enabled":true},{"name":"MatVerse-py/skills","enabled":true},{"name":"MatVerse-py/Pose","enabled":true},{"name":"MatVerse-py/matverse-landing-page","enabled":true},{"name":"MatVerse-py/Regx","enabled":true},{"name":"MatVerse-py/svca-lab-genesis","enabled":true},{"name":"MatVerse-py/ODA-QF","enabled":true},{"name":"MatVerse-py/github-url-validator","enabled":true},{"name":"MatVerse-py/KiloMan","enabled":true},{"name":"MatVerse-py/Symbiodroid","enabled":true},{"name":"MatVerse-py/mnbs-seed","enabled":true},{"name":"MatVerse-py/matverse-github-resolver","enabled":true},{"name":"MatVerse-py/matverse-stack-production","enabled":true},{"name":"MatVerse-py/bunker-genesis-mirror","enabled":true},{"name":"MatVerse-py/matverse-dataset-governance-pipeline","enabled":true},{"name":"MatVerse-py/matverse-quantum-experiment-data","enabled":true},{"name":"MatVerse-py/matverse-secure-loader","enabled":true},{"name":"MatVerse-py/symbios-code","enabled":true},{"name":"MatVerse-py/matverse-twin-core","enabled":true},{"name":"MatVerse-py/matverse-u-docs","enabled":true},{"name":"MatVerse-py/matverse-E","enabled":true},{"name":"MatVerse-py/matverse-nexus-pwa","enabled":true},{"name":"MatVerse-py/matverse-u-os","enabled":true},{"name":"MatVerse-py/symbiOSclauw","enabled":true},{"name":"MatVerse-py/delta-circuit-ignite","enabled":true},{"name":"MatVerse-py/matverse-u-kernel","enabled":true},{"name":"MatVerse-py/matverse-mcp-server","enabled":true},{"name":"MatVerse-py/matverse-u-gate","enabled":true},{"name":"MatVerse-py/urano-os","enabled":true},{"name":"MatVerse-py/urano-digital-life-contract","enabled":true},{"name":"MatVerse-py/matverse-u-lua","enabled":true},{"name":"MatVerse-py/IA.GOV","enabled":true},
+    {"name":"matverse-acoa/papers","enabled":true},{"name":"matverse-acoa/core","enabled":true},{"name":"matverse-acoa/Cassandra","enabled":true},{"name":"matverse-acoa/Organismo","enabled":true},{"name":"matverse-acoa/svca-inescapavel","enabled":true},{"name":"matverse-acoa/Atlas","enabled":true},{"name":"matverse-acoa/Gate","enabled":true},{"name":"matverse-acoa/QEX","enabled":true},{"name":"matverse-acoa/csi-organism-manager","enabled":true},{"name":"matverse-acoa/matverse","enabled":true},{"name":"matverse-acoa/matverse_ouroboros","enabled":true},{"name":"matverse-acoa/matverse-v5-sovereign","enabled":true},{"name":"matverse-acoa/mvo-test-results","enabled":true},
+    {"name":"MatVerse-Hub/DEv","enabled":true},{"name":"MatVerse-Hub/twin","enabled":true},{"name":"MatVerse-Hub/symbiosV2","enabled":true},{"name":"MatVerse-Hub/SymbiOS","enabled":true},{"name":"MatVerse-Hub/Captals","enabled":true},{"name":"MatVerse-Hub/IQG","enabled":true},{"name":"MatVerse-Hub/Prime","enabled":true},{"name":"MatVerse-Hub/matverse-M-CSQI","enabled":true},{"name":"MatVerse-Hub/Superkernel","enabled":true},{"name":"MatVerse-Hub/apk-uploader-pro","enabled":true},{"name":"MatVerse-Hub/forensic-backend","enabled":true},{"name":"MatVerse-Hub/argos-media-integrity","enabled":true},{"name":"MatVerse-Hub/argos-admin-console","enabled":true},{"name":"MatVerse-Hub/Prim","enabled":true},
+    {"name":"Symbios-Matverse/matversechain-scan","enabled":true},{"name":"Symbios-Matverse/matverse-core","enabled":true},
+    {"name":"MatVerse-U/MatVerse-U-OpenBox","enabled":true},{"name":"MatVerse-U/sober-machine","enabled":true},{"name":"MatVerse-U/Symbios","enabled":true}
   ]
 }
