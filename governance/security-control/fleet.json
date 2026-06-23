@@ -1,0 +1,40 @@
+{
+  "schema_version": "1.0",
+  "policy_version": "1.0.0",
+  "control_plane": "matverse-acoa/Cassandra",
+  "constitutional_anchor": "matverse-acoa/core",
+  "rollout_mode": "pr_only",
+  "automation": {
+    "allowed_operations": ["plan", "verify", "apply_policy_pr"],
+    "forbidden_operations": ["merge", "deploy", "secret_read", "credential_rotation", "network_scan"]
+  },
+  "repositories": [
+    {"name": "matverse-acoa/Atlas", "default_branch": "main", "enabled": true},
+    {"name": "matverse-acoa/Cassandra", "default_branch": "main", "enabled": true},
+    {"name": "matverse-acoa/core", "default_branch": "main", "enabled": true},
+    {"name": "matverse-acoa/csi-organism-manager", "default_branch": "main", "enabled": true},
+    {"name": "matverse-acoa/Gate", "default_branch": "main", "enabled": true},
+    {"name": "matverse-acoa/matverse", "default_branch": "main", "enabled": true},
+    {"name": "matverse-acoa/matverse-v5-sovereign", "default_branch": "main", "enabled": true},
+    {"name": "matverse-acoa/matverse_ouroboros", "default_branch": "main", "enabled": true},
+    {"name": "matverse-acoa/mvo-test-results", "default_branch": "main", "enabled": true},
+    {"name": "matverse-acoa/Organismo", "default_branch": "main", "enabled": true},
+    {"name": "matverse-acoa/papers", "default_branch": "main", "enabled": true},
+    {"name": "matverse-acoa/QEX", "default_branch": "main", "enabled": true},
+    {"name": "matverse-acoa/svca-inescapavel", "default_branch": "main", "enabled": true},
+    {"name": "MatVerse-Hub/apk-uploader-pro", "default_branch": "main", "enabled": true},
+    {"name": "MatVerse-Hub/argos-admin-console", "default_branch": "main", "enabled": true},
+    {"name": "MatVerse-Hub/argos-media-integrity", "default_branch": "main", "enabled": true},
+    {"name": "MatVerse-Hub/Captals", "default_branch": "main", "enabled": true},
+    {"name": "MatVerse-Hub/DEv", "default_branch": "main", "enabled": true},
+    {"name": "MatVerse-Hub/forensic-backend", "default_branch": "main", "enabled": true},
+    {"name": "MatVerse-Hub/IQG", "default_branch": "main", "enabled": true},
+    {"name": "MatVerse-Hub/matverse-M-CSQI", "default_branch": "main", "enabled": true},
+    {"name": "MatVerse-Hub/Prim", "default_branch": "main", "enabled": true},
+    {"name": "MatVerse-Hub/Prime", "default_branch": "main", "enabled": true},
+    {"name": "MatVerse-Hub/Superkernel", "default_branch": "main", "enabled": true},
+    {"name": "MatVerse-Hub/SymbiOS", "default_branch": "main", "enabled": true},
+    {"name": "MatVerse-Hub/symbiosV2", "default_branch": "main", "enabled": true},
+    {"name": "MatVerse-Hub/twin", "default_branch": "main", "enabled": true}
+  ]
+}
