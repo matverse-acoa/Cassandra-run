@@ -1,0 +1,55 @@
+{
+  "schema_version": "1.0.0",
+  "migration_id": "cassandra-control-plane-v0.1",
+  "source": {
+    "kind": "replit-pnpm-workspace",
+    "artifact": "Asset-Management-System.zip",
+    "root": "Asset-Management-System"
+  },
+  "destination": {
+    "staging_root": "imports/replit-asset-management-system",
+    "strategy": "preserve-first-refactor-later"
+  },
+  "include": [
+    "artifacts/api-server",
+    "artifacts/cassandra-dashboard",
+    "lib/api-client-react",
+    "lib/api-spec",
+    "lib/api-zod",
+    "lib/db",
+    "scripts",
+    "package.json",
+    "pnpm-lock.yaml",
+    "pnpm-workspace.yaml",
+    "tsconfig.json",
+    "tsconfig.base.json",
+    ".npmrc",
+    ".replit",
+    "replit.md"
+  ],
+  "exclude": [
+    ".git",
+    ".local",
+    "node_modules",
+    "dist",
+    ".tsbuildinfo",
+    "attached_assets",
+    "mockup-sandbox",
+    ".replit-artifact"
+  ],
+  "canonical_mapping": {
+    "artifacts/api-server": "services/replit-api",
+    "artifacts/cassandra-dashboard": "apps/replit-dashboard",
+    "lib/api-spec": "packages/api-spec",
+    "lib/api-client-react": "packages/api-client-react",
+    "lib/api-zod": "packages/api-zod",
+    "lib/db": "packages/db"
+  },
+  "acceptance": [
+    "pnpm install --frozen-lockfile",
+    "pnpm run typecheck",
+    "pnpm run build",
+    "no generated runtime artifacts committed",
+    "no secrets or attached conversation material imported"
+  ]
+}

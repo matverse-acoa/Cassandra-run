@@ -1,0 +1,54 @@
+name: Replit Control Plane CI
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "imports/replit-asset-management-system/**"
+      - "migration/replit-control-plane-import.json"
+      - ".github/workflows/replit-control-plane-ci.yml"
+  push:
+    branches: ["import/cassandra-control-plane-v0.1"]
+    paths:
+      - "imports/replit-asset-management-system/**"
+      - "migration/replit-control-plane-import.json"
+      - ".github/workflows/replit-control-plane-ci.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate-import:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: imports/replit-asset-management-system
+    steps:
+      - uses: actions/checkout@v4
+      - name: Detect staged source
+        id: source
+        run: |
+          if [ -f package.json ]; then echo "present=true" >> "$GITHUB_OUTPUT"; else echo "present=false" >> "$GITHUB_OUTPUT"; fi
+      - uses: actions/setup-node@v4
+        if: steps.source.outputs.present == 'true'
+        with:
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: imports/replit-asset-management-system/pnpm-lock.yaml
+      - uses: pnpm/action-setup@v4
+        if: steps.source.outputs.present == 'true'
+        with:
+          version: 10
+      - name: Install frozen dependencies
+        if: steps.source.outputs.present == 'true'
+        run: pnpm install --frozen-lockfile
+      - name: Typecheck
+        if: steps.source.outputs.present == 'true'
+        run: pnpm run typecheck
+      - name: Build
+        if: steps.source.outputs.present == 'true'
+        run: pnpm run build
+      - name: No staged source yet
+        if: steps.source.outputs.present != 'true'
+        run: echo "Automation scaffold is ready; waiting for source import."
