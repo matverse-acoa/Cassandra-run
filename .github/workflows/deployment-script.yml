@@ -1,0 +1,28 @@
+name: Deployment Script Checks
+
+on:
+  pull_request:
+    paths:
+      - ".gitignore"
+      - "scripts/deploy-production.sh"
+      - "tests/test_deploy_production.sh"
+      - ".github/workflows/deployment-script.yml"
+  push:
+    branches:
+      - main
+    paths:
+      - ".gitignore"
+      - "scripts/deploy-production.sh"
+      - "tests/test_deploy_production.sh"
+      - ".github/workflows/deployment-script.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  shell:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate deployment script
+        run: bash tests/test_deploy_production.sh
