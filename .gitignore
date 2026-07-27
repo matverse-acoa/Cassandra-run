@@ -1,2 +1,14 @@
 __pycache__/
 *.pyc
+
+# Local deployment credentials and rendered configuration
+.secrets/
+.env
+.env.*
+!.env.example
+*.key
+*.pem
+*.p12
+*.jks
+docker-compose.yml
+deploy_trace.log
