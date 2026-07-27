@@ -4,6 +4,9 @@
 
 set -euo pipefail
 
+# Segredos gerados durante o deploy nunca devem nascer com permissões amplas.
+umask 077
+
 ENVIRONMENT=${ENVIRONMENT:-production}
 NETWORK=${NETWORK:-mainnet}
 DEPLOY_MODE=${DEPLOY_MODE:-systemd}
@@ -35,7 +38,11 @@ check_requirements() {
             requirements+=("systemctl")
             ;;
         "docker")
-            requirements+=("docker" "docker-compose" "envsubst")
+            requirements+=("docker")
+            if ! docker compose version >/dev/null 2>&1 && ! command -v docker-compose >/dev/null 2>&1; then
+                log_error "Docker Compose v2 ou docker-compose não encontrado"
+                return 1
+            fi
             ;;
         "kubernetes")
             requirements+=("kubectl")
@@ -59,6 +66,7 @@ generate_secrets() {
     log_info "Gerando segredos..."
 
     mkdir -p .secrets
+    chmod 700 .secrets
 
     if [[ ! -f .secrets/api_token ]]; then
         openssl rand -hex 32 > .secrets/api_token
@@ -150,14 +158,20 @@ deploy_systemd() {
     log_info "✅ Systemd configurado"
 }
 
+run_compose() {
+    if docker compose version >/dev/null 2>&1; then
+        docker compose "$@"
+    else
+        docker-compose "$@"
+    fi
+}
+
 deploy_docker() {
     log_info "Deploy via Docker Compose..."
 
-    envsubst < docker-compose.production.yml > docker-compose.yml
-
-    docker-compose up -d
-
-    docker-compose ps
+    # O Compose interpola as variáveis exportadas; não materialize segredos em docker-compose.yml.
+    run_compose -f docker-compose.production.yml up -d
+    run_compose -f docker-compose.production.yml ps
 
     log_info "✅ Docker Compose configurado"
 }
@@ -171,7 +185,8 @@ deploy_kubernetes() {
         --from-file=.secrets/api_token \
         --from-file=.secrets/postgres_password \
         --from-file=.secrets/redis_password \
-        --namespace production
+        --namespace production \
+        --dry-run=client -o yaml | kubectl apply -f -
 
     kubectl apply -k k8s/overlays/production/
 
@@ -204,28 +219,28 @@ validate_deployment() {
     if [[ "$DEPLOY_MODE" == "systemd" ]]; then
         if systemctl is-active --quiet cassandra-matverse.service; then
             log_info "✅ Serviço systemd ativo"
-            ((checks_passed++))
+            ((++checks_passed))
         else
             log_error "❌ Serviço systemd inativo"
         fi
-        ((total_checks++))
+        ((++total_checks))
     fi
 
     if curl -s http://localhost:8545/health | grep -q "healthy"; then
         log_info "✅ API Health OK"
-        ((checks_passed++))
+        ((++checks_passed))
     else
         log_error "❌ API Health falhou"
     fi
-    ((total_checks++))
+    ((++total_checks))
 
     if journalctl -u cassandra-matverse --since "5 minutes ago" | grep -q "ERROR"; then
         log_warn "⚠️  Erros encontrados nos logs"
     else
         log_info "✅ Logs limpos"
-        ((checks_passed++))
+        ((++checks_passed))
     fi
-    ((total_checks++))
+    ((++total_checks))
 
     log_info "Resultado: $checks_passed/$total_checks checks passaram"
 
